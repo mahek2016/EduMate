@@ -58,6 +58,77 @@
       background: #0056cc;
     }
 
+    .templates {
+      margin-top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    .chip {
+      padding: 8px 14px;
+      border-radius: 16px;
+      background: #e5f0ff;
+      color: #0b5bd3;
+      border: 1px solid #bcd4ff;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.2s, transform 0.2s;
+    }
+
+    .chip:hover {
+      background: #d7e8ff;
+      transform: translateY(-1px);
+    }
+
+    .controls {
+      margin-top: 16px;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .action-btn {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 22px;
+      cursor: pointer;
+      font-size: 15px;
+      background: #111827;
+      color: #fff;
+      transition: transform 0.2s, background 0.3s;
+    }
+
+    .action-btn:hover {
+      transform: translateY(-1px);
+      background: #0b1220;
+    }
+
+    .stage {
+      margin: 24px auto 8px;
+      display: block;
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+      border: 1px solid #e5e7eb;
+    }
+
+    .status {
+      font-size: 14px;
+      color: #374151;
+      margin: 6px 0 0;
+    }
+
+    .explanation {
+      margin-top: 8px;
+      max-width: 840px;
+      color: #1f2937;
+      line-height: 1.45;
+      font-size: 14px;
+    }
+
     /* Special animation for Google button */
     .google:hover {
       background: #db4437;
@@ -94,37 +165,405 @@
 </head>
 <body>
   <div class="search-container">
-    <input type="text" class="search-box" placeholder="Type to search...">
-    <div class="button-group">
-      <button class="search-btn google">Google</button>
-      <button class="search-btn bing">Bing</button>
-      <button class="search-btn duck">DuckDuckGo</button>
+    <input id="topic-input" type="text" class="search-box" placeholder="Type a topic (e.g., Stack, Queue, Bubble Sort)">
+    <div class="templates">
+      <button class="chip" data-topic="stack">Stack</button>
+      <button class="chip" data-topic="queue">Queue</button>
+      <button class="chip" data-topic="bubble sort">Bubble Sort</button>
+      <button class="chip" data-topic="linked list">Linked List</button>
+      <button class="chip" data-topic="binary search">Binary Search</button>
     </div>
+    <div class="controls">
+      <button id="animateBtn" class="action-btn">Animate</button>
+      <button id="resetBtn" class="action-btn" style="background:#6b7280">Reset</button>
+    </div>
+    <canvas id="stage" class="stage" width="840" height="380"></canvas>
+    <div id="status" class="status">Tip: pick a template chip or press Enter to animate.</div>
+    <div id="explanation" class="explanation"></div>
   </div>
 
   <script>
-    const input = document.querySelector('.search-box');
-    const buttons = document.querySelectorAll('.search-btn');
+    const input = document.getElementById('topic-input');
+    const stage = document.getElementById('stage');
+    const ctx = stage.getContext('2d');
+    const statusEl = document.getElementById('status');
+    const explanationEl = document.getElementById('explanation');
+    const animateBtn = document.getElementById('animateBtn');
+    const resetBtn = document.getElementById('resetBtn');
 
-    buttons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        let query = input.value.trim();
-        if (!query) {
-          alert("Please enter something to search!");
+    let rafId = null;
+    let running = false;
+
+    const explanations = {
+      stack: "A Stack is LIFO (Last-In, First-Out). Operations: push, pop.",
+      queue: "A Queue is FIFO (First-In, First-Out). Operations: enqueue, dequeue.",
+      'bubble sort': "Bubble Sort repeatedly swaps adjacent out-of-order elements until sorted.",
+      'linked list': "A Linked List is a chain of nodes pointing to the next node.",
+      'binary search': "Binary Search halves the search space on a sorted array to find a value."
+    };
+
+    function normalizeTopic(t) {
+      if (!t) return '';
+      t = t.trim().toLowerCase();
+      if (t.includes('bubble')) return 'bubble sort';
+      if (t.includes('stack')) return 'stack';
+      if (t.includes('queue')) return 'queue';
+      if (t.includes('linked')) return 'linked list';
+      if (t.includes('binary')) return 'binary search';
+      return t;
+    }
+
+    function clearStage() {
+      ctx.clearRect(0, 0, stage.width, stage.height);
+      const grd = ctx.createLinearGradient(0, 0, 0, stage.height);
+      grd.addColorStop(0, '#ffffff');
+      grd.addColorStop(1, '#f8fafc');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, stage.width, stage.height);
+    }
+
+    function stop() {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = null;
+      running = false;
+    }
+
+    function setStatus(msg) {
+      statusEl.textContent = msg;
+    }
+
+    function setExplanation(topic) {
+      const key = normalizeTopic(topic);
+      explanationEl.textContent = explanations[key] || '';
+    }
+
+    function ease(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function animateStack() {
+      const baseX = 100;
+      const baseY = 320;
+      const width = 120;
+      const height = 28;
+      const items = [10, 20, 30];
+      let step = 0;
+      let t0 = 0;
+
+      function drawBox(y, value) {
+        ctx.fillStyle = '#e0f2fe';
+        ctx.strokeStyle = '#0284c7';
+        ctx.lineWidth = 2;
+        ctx.fillRect(baseX, y - height, width, height);
+        ctx.strokeRect(baseX, y - height, width, height);
+        ctx.fillStyle = '#0c4a6e';
+        ctx.font = '16px Arial';
+        ctx.fillText(String(value), baseX + width / 2 - 8, y - 8);
+      }
+
+      function frame(ts) {
+        if (!t0) t0 = ts;
+        clearStage();
+        ctx.strokeStyle = '#94a3b8';
+        ctx.strokeRect(baseX - 6, baseY - height * 4, width + 12, height * 4 + 6);
+
+        if (step === 0) setStatus('PUSH 10');
+        if (step === 1) setStatus('PUSH 20');
+        if (step === 2) setStatus('PUSH 30');
+        if (step === 3) setStatus('POP 30');
+
+        for (let i = 0; i < Math.min(step, 3); i++) {
+          drawBox(baseY - i * height, items[i]);
+        }
+
+        const elapsed = (ts - t0) / 900;
+        if (step < 3) {
+          const y = baseY - step * height;
+          const startY = 40;
+          const p = Math.min(1, elapsed);
+          drawBox(startY + (y - startY) * ease(p), items[step]);
+          if (p === 1) {
+            step += 1;
+            t0 = ts;
+          }
+        } else if (step === 3) {
+          const y = baseY - 2 * height;
+          const endY = 40;
+          const p = Math.min(1, elapsed);
+          drawBox(y + (endY - y) * ease(p), items[2]);
+          drawBox(baseY, items[0]);
+          drawBox(baseY - height, items[1]);
+          if (p === 1) {
+            step = 4;
+          }
+        } else {
+          setStatus('Done');
+          running = false;
           return;
         }
+        rafId = requestAnimationFrame(frame);
+      }
+      rafId = requestAnimationFrame(frame);
+    }
 
-        let url = "";
-        if (btn.classList.contains('google')) {
-          url = `https://www.google.com/search?q=${query}`;
-        } else if (btn.classList.contains('bing')) {
-          url = `https://www.bing.com/search?q=${query}`;
-        } else if (btn.classList.contains('duck')) {
-          url = `https://duckduckgo.com/?q=${query}`;
+    function animateQueue() {
+      const laneY = 260;
+      const startX = 120;
+      const spacing = 80;
+      const items = [5, 8, 12];
+      let t0 = 0;
+      let phase = 0;
+
+      function drawNode(x, value) {
+        ctx.fillStyle = '#ecfeff';
+        ctx.strokeStyle = '#06b6d4';
+        ctx.lineWidth = 2;
+        ctx.fillRect(x - 30, laneY - 20, 60, 40);
+        ctx.strokeRect(x - 30, laneY - 20, 60, 40);
+        ctx.fillStyle = '#0e7490';
+        ctx.font = '16px Arial';
+        ctx.fillText(String(value), x - 6, laneY + 6);
+      }
+
+      function frame(ts) {
+        if (!t0) t0 = ts;
+        clearStage();
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(80, laneY + 22);
+        ctx.lineTo(stage.width - 80, laneY + 22);
+        ctx.stroke();
+
+        const p = Math.min(1, (ts - t0) / 1200);
+
+        if (phase === 0) setStatus('ENQUEUE 5');
+        if (phase === 1) setStatus('ENQUEUE 8');
+        if (phase === 2) setStatus('ENQUEUE 12');
+        if (phase === 3) setStatus('DEQUEUE 5');
+
+        const positions = [
+          startX + spacing * Math.min(1, p),
+          startX + spacing * Math.max(0, p - 0.2),
+          startX + spacing * Math.max(0, p - 0.4)
+        ];
+
+        if (phase <= 2) {
+          for (let i = 0; i <= phase; i++) {
+            drawNode(positions[i], items[i]);
+          }
+          if (p === 1) { phase++; t0 = ts; }
+        } else if (phase === 3) {
+          const headX = startX + spacing;
+          const x = headX + (stage.width - 120 - headX) * ease(p);
+          drawNode(x, items[0]);
+          drawNode(startX + spacing, items[1]);
+          drawNode(startX + spacing * 2, items[2]);
+          if (p === 1) { phase = 4; }
+        } else {
+          setStatus('Done');
+          running = false;
+          return;
         }
-        window.open(url, "_blank");
+        rafId = requestAnimationFrame(frame);
+      }
+      rafId = requestAnimationFrame(frame);
+    }
+
+    function animateBubbleSort() {
+      const n = 16;
+      const values = Array.from({ length: n }, (_, i) => Math.floor(20 + Math.random() * 180));
+      const barWidth = Math.floor((stage.width - 160) / n);
+      const baseY = 340;
+      let i = 0, j = 0;
+      let swapping = null;
+
+      function drawBars(highlightA = -1, highlightB = -1) {
+        clearStage();
+        setStatus('Bubble Sort: compare and swap adjacent out-of-order bars');
+        for (let k = 0; k < n; k++) {
+          const x = 80 + k * barWidth;
+          const h = values[k];
+          ctx.fillStyle = (k === highlightA || k === highlightB) ? '#22c55e' : '#93c5fd';
+          ctx.fillRect(x, baseY - h, barWidth - 4, h);
+        }
+      }
+
+      function step() {
+        if (i >= n - 1) { running = false; setStatus('Done'); return; }
+        if (j >= n - 1 - i) { j = 0; i++; return; }
+        if (values[j] > values[j + 1] && swapping == null) {
+          swapping = { a: j, b: j + 1, t: 0 };
+        } else if (swapping == null) {
+          j++;
+        }
+      }
+
+      function frame() {
+        if (swapping) {
+          swapping.t += 0.06;
+          const p = Math.min(1, swapping.t);
+          const a = swapping.a, b = swapping.b;
+          drawBars(a, b);
+          ctx.globalAlpha = 0.7;
+          ctx.fillStyle = '#16a34a';
+          const xA = 80 + a * barWidth;
+          const xB = 80 + b * barWidth;
+          const hA = values[a];
+          const hB = values[b];
+          const xAi = xA + (xB - xA) * ease(p);
+          const xBi = xB + (xA - xB) * ease(p);
+          ctx.fillRect(xAi, baseY - hA, barWidth - 4, hA);
+          ctx.fillRect(xBi, baseY - hB, barWidth - 4, hB);
+          ctx.globalAlpha = 1;
+          if (p === 1) {
+            const tmp = values[a];
+            values[a] = values[b];
+            values[b] = tmp;
+            swapping = null;
+            j++;
+          }
+        } else {
+          drawBars(j, j + 1);
+          step();
+        }
+        if (running) rafId = requestAnimationFrame(frame);
+      }
+      rafId = requestAnimationFrame(frame);
+    }
+
+    function animateLinkedList() {
+      clearStage();
+      setStatus('Linked List: nodes connected with next pointers');
+      ctx.strokeStyle = '#6b7280';
+      ctx.fillStyle = '#eef2ff';
+      ctx.lineWidth = 2;
+      const nodes = [
+        { x: 140, y: 180, v: 3 },
+        { x: 300, y: 180, v: 7 },
+        { x: 460, y: 180, v: 11 },
+        { x: 620, y: 180, v: 15 }
+      ];
+      nodes.forEach(n => {
+        ctx.fillRect(n.x - 36, n.y - 22, 72, 44);
+        ctx.strokeRect(n.x - 36, n.y - 22, 72, 44);
+        ctx.beginPath();
+        ctx.moveTo(n.x + 6, n.y - 22);
+        ctx.lineTo(n.x + 6, n.y + 22);
+        ctx.stroke();
+        ctx.fillStyle = '#3730a3';
+        ctx.font = '16px Arial';
+        ctx.fillText(String(n.v), n.x - 18, n.y + 6);
+        ctx.fillStyle = '#eef2ff';
+      });
+      ctx.strokeStyle = '#1d4ed8';
+      ctx.fillStyle = '#1d4ed8';
+      for (let i = 0; i < nodes.length - 1; i++) {
+        const a = nodes[i];
+        const b = nodes[i + 1];
+        ctx.beginPath();
+        ctx.moveTo(a.x + 24, a.y);
+        ctx.lineTo(b.x - 36, b.y);
+        ctx.stroke();
+        const ang = 0;
+        ctx.beginPath();
+        ctx.moveTo(b.x - 36, b.y);
+        ctx.lineTo(b.x - 44, b.y - 6);
+        ctx.lineTo(b.x - 44, b.y + 6);
+        ctx.closePath();
+        ctx.fill();
+      }
+      running = false;
+    }
+
+    function animateBinarySearch() {
+      clearStage();
+      setStatus('Binary Search: halve the search interval');
+      const arr = Array.from({ length: 16 }, (_, i) => i + 1);
+      const target = arr[Math.floor(Math.random() * arr.length)];
+      let lo = 0, hi = arr.length - 1;
+      let t = 0;
+
+      function draw(lo, hi, mid) {
+        clearStage();
+        const w = 40;
+        const startX = 80;
+        const baseY = 220;
+        for (let i = 0; i < arr.length; i++) {
+          const x = startX + i * (w + 6);
+          ctx.fillStyle = (i >= lo && i <= hi) ? '#bbf7d0' : '#e5e7eb';
+          if (i === mid) ctx.fillStyle = '#86efac';
+          ctx.fillRect(x, baseY - 40, w, 40);
+          ctx.fillStyle = '#111827';
+          ctx.font = '14px Arial';
+          ctx.fillText(String(arr[i]), x + 12, baseY - 14);
+        }
+        ctx.fillStyle = '#111827';
+        ctx.fillText('Target: ' + target, startX, baseY + 24);
+      }
+
+      function frame() {
+        const mid = Math.floor((lo + hi) / 2);
+        draw(lo, hi, mid);
+        if (arr[mid] === target || lo > hi) {
+          running = false;
+          setStatus('Done');
+          return;
+        }
+        if (t++ % 30 === 0) {
+          if (arr[mid] < target) lo = mid + 1; else hi = mid - 1;
+        }
+        rafId = requestAnimationFrame(frame);
+      }
+      rafId = requestAnimationFrame(frame);
+    }
+
+    function runAnimation(topicRaw) {
+      stop();
+      clearStage();
+      const topic = normalizeTopic(topicRaw);
+      setExplanation(topic);
+      running = true;
+      if (topic === 'stack') return animateStack();
+      if (topic === 'queue') return animateQueue();
+      if (topic === 'bubble sort') return animateBubbleSort();
+      if (topic === 'linked list') return animateLinkedList();
+      if (topic === 'binary search') return animateBinarySearch();
+      running = false;
+      setStatus('Unknown topic. Try: Stack, Queue, Bubble Sort, Linked List, Binary Search.');
+    }
+
+    document.querySelectorAll('.chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const t = chip.getAttribute('data-topic');
+        input.value = t;
+        runAnimation(t);
       });
     });
+
+    animateBtn.addEventListener('click', () => {
+      const t = input.value.trim();
+      if (!t) { setStatus('Please type a topic.'); return; }
+      runAnimation(t);
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const t = input.value.trim();
+        if (!t) { setStatus('Please type a topic.'); return; }
+        runAnimation(t);
+      }
+    });
+
+    resetBtn.addEventListener('click', () => {
+      stop();
+      clearStage();
+      input.value = '';
+      setStatus('Reset. Pick a template or type a topic.');
+      explanationEl.textContent = '';
+    });
+
+    clearStage();
   </script>
 </body>
 </html>
